@@ -1,0 +1,2 @@
+<!-- 扫描切面  -->
+<context:component-scan base-package="club.ihere.aspect"/>

@@ -1,0 +1,5 @@
+<aop:config>
+		<aop:pointcut id="avoidRepeatableCommit" expression="execution(* club.ihere.*..*(..)) and @annotation(club.ihere.core.util.commit.annotation.AvoidRepeatableCommit)"/>
+		<aop:advisor advice-ref="avoidRepeatableCommitAdvince" pointcut-ref="avoidRepeatableCommit"/>
+	</aop:config>
+	<bean id="avoidRepeatableCommitAdvince" class="club.ihere.core.util.commit.AvoidRepeatableCommitAdvice"/>

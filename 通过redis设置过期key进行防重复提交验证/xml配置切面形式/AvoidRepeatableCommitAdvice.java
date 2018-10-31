@@ -1,61 +1,18 @@
-(```)
-/**自定义注解*/
-package com.jshq.social.qa.aspect.annotation;
+package club.ihere.core.util.commit;
 
-/**
- * @author: fengshibo
- * @date: 2018/10/31 09:39
- * @description:
- */
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
-/**
- * 避免重复提交
- * @author hhz
- * @version
- * @since
- */
-@Target(ElementType.METHOD)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface AvoidRepeatableCommit {
-
-    /**
-     * 指定时间内不可重复提交,单位毫秒
-     * @return
-     */
-    long timeout()  default 3000 ;
-
-}
-
-
-
-/**切面类*/
-package com.jshq.social.qa.aspect;
-
-/**
- * @author: fengshibo
- * @date: 2018/10/31 09:42
- * @description:
- */
-
-import com.jshq.core.exception.ParameterValidationException;
-import com.jshq.core.util.StringUtil;
-import com.jshq.social.qa.aspect.annotation.AvoidRepeatableCommit;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature;
+import club.ihere.core.config.BaseConfig;
+import club.ihere.core.config.Config;
+import club.ihere.core.constant.Constant;
+import club.ihere.core.exception.ParameterValidationException;
+import club.ihere.core.util.StringUtil;
+import club.ihere.core.util.commit.annotation.AvoidRepeatableCommit;
+import org.aopalliance.intercept.MethodInterceptor;
+import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import sun.net.util.IPAddressUtil;
 
 import javax.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
@@ -63,30 +20,21 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 重复提交aop
- *
- * @author
- * @since
+ * @author: fengshibo
+ * @date: 2018/11/1 11:31
+ * @description:
  */
-@Aspect
-@Component
-public class AvoidRepeatableCommitAspect {
-
+public class AvoidRepeatableCommitAdvice implements MethodInterceptor {
 
     @Autowired
     @Qualifier("redisTemplate6")
     private RedisTemplate redisTemplate;
 
-    /**
-     * @param point
-     */
-    @Around("@annotation(com.jshq.social.qa.aspect.annotation.AvoidRepeatableCommit)")
-    public Object around(ProceedingJoinPoint point) throws Throwable {
+    @Override
+    public Object invoke(MethodInvocation methodInvocation) throws Throwable {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         String ip = getIp2(request);
-        //获取注解
-        MethodSignature signature = (MethodSignature) point.getSignature();
-        Method method = signature.getMethod();
+        Method method = methodInvocation.getMethod();
         //目标类、方法
         String className = method.getDeclaringClass().getName();
         String name = method.getName();
@@ -96,19 +44,18 @@ public class AvoidRepeatableCommitAspect {
         AvoidRepeatableCommit avoidRepeatableCommit = method.getAnnotation(AvoidRepeatableCommit.class);
         long timeout = avoidRepeatableCommit.timeout();
         if (timeout < 0) {
-            timeout = 3000L;
+			//常量，如果注解时间不合法则赋予默认值
+            timeout = Constant.AVOID_REPEATABLE_COMMIT_TIME;
         }
         String value = (String) redisTemplate.opsForValue().get(key);
         if (StringUtil.isNotBlank(value)) {
             throw new ParameterValidationException("请勿重复提交");
         }
         redisTemplate.opsForValue().set(key, UUID.randomUUID().toString().replace("-", ""), timeout, TimeUnit.MILLISECONDS);
-        //执行方法
-        Object object = point.proceed();
-        return object;
+        return methodInvocation.proceed();
     }
 
-    private  String getIp2(HttpServletRequest request) {
+    private String getIp2(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (StringUtil.isNotEmpty(ip) && !"unKnown".equalsIgnoreCase(ip)) {
             //多次反向代理后会有多个ip值，第一个ip才是真实ip
@@ -126,4 +73,3 @@ public class AvoidRepeatableCommitAspect {
         return request.getRemoteAddr();
     }
 }
-(```)
